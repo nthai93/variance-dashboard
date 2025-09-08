@@ -137,6 +137,36 @@ with st.expander("📈 Overview", expanded=True):
     else:
         delay_by_machine = pd.Series(dtype=int)
 
+# %% 🔹 Missing Plan / Actual / Data Issues
+with st.expander("🔎 Data Integrity Checks", expanded=True):
+    if "Alert" in df.columns or "Note" in df.columns:
+        no_plan_df = df[df["Alert"].str.contains("Không có plan", na=False)][["Machine","ItemCode","Date"]]
+        no_actual_df = df[df["Alert"].str.contains("Không có actual", na=False)][["Machine","ItemCode","Date"]]
+        need_check_df = df[df["Note"].str.contains("Kiểm tra lại", na=False)][["Machine","ItemCode","Date","Note"]]
+
+        st.markdown("### 🟥 Unplanned Production (No Plan)")
+        st.caption("Jobs that were not planned but actually produced.")
+        if not no_plan_df.empty:
+            st.dataframe(no_plan_df, use_container_width=True)
+        else:
+            st.write("✅ None")
+
+        st.markdown("### 🟧 Unexecuted Plan (No Actual)")
+        st.caption("Jobs that were planned but not executed (no actual result).")
+        if not no_actual_df.empty:
+            st.dataframe(no_actual_df, use_container_width=True)
+        else:
+            st.write("✅ None")
+
+        st.markdown("### 🟨 Data Integrity Issue (Need Check)")
+        st.caption("Same machine and time slot has multiple ItemCodes – requires investigation.")
+        if not need_check_df.empty:
+            st.dataframe(need_check_df, use_container_width=True)
+        else:
+            st.write("✅ None")
+
+
+
 # %% 🔹 Alert Job Details
 with st.expander("📋 Jobs with Alerts", expanded=True):
     alert_df = df[df["Alert"].notna()] if "Alert" in df.columns else pd.DataFrame()
@@ -254,41 +284,13 @@ with st.expander("🧭 Heatmap by Machine × Date"):
             aggfunc=["min", "max", "std"]
         )
         st.dataframe(stats)
-# %% 🔹 Scatterplot Start vs Duration Delay
-# %% 🔹 Scatterplot Start vs Duration Delay
-# with st.expander("📊 Scatterplot: Start Delay vs Duration Delay", expanded=True):
-#     if {"Trễ bắt đầu", "Delay (min)"}.issubset(df.columns):
-
-#         # Ưu tiên hue = Alert nếu có, ngược lại hue = Machine
-#         hue_col = "Alert" if "Alert" in df.columns else "Machine"
-
-#         fig_scatter, ax = plt.subplots(figsize=(8,6))
-#         sns.scatterplot(
-#             data=df,
-#             x="Trễ bắt đầu",     # giữ nguyên vì chưa rename
-#             y="Delay (min)",     # sau rename từ "Trễ thời gian"
-#             hue=hue_col,
-#             style="Machine" if "Machine" in df.columns else None,
-#             ax=ax,
-#             s=80
-#         )
-
-#         # Vẽ trục chuẩn (0,0)
-#         ax.axhline(0, color="black", linewidth=1)
-#         ax.axvline(0, color="black", linewidth=1)
-
-#         ax.set_xlabel("Trễ bắt đầu (phút)")
-#         ax.set_ylabel("Trễ thời gian (phút)")   # nhãn vẫn giữ tiếng Việt cho dễ đọc
-#         ax.set_title("Start Delay vs Duration Delay", fontsize=14)
-
-#         st.pyplot(fig_scatter)
-
 
 # %% 🔹 Export Dashboard to HTML
 report_date = df["Date"].dropna().mode()[0] if "Date" in df.columns else "N/A"
 report_date_str = pd.to_datetime(report_date).strftime("%d/%m/%Y")
 logo_base64 = img_to_base64("TKMB.jpg")   # vì file nằm chung folder
 logo_html = f'<img src="data:image/jpg;base64,{logo_base64}" class="company-logo">'
+
 
 # %% 🔹 Export Dashboard to HTML
 if st.button("📥 Export FULL Dashboard to HTML"):
@@ -606,6 +608,30 @@ if st.button("📥 Export FULL Dashboard to HTML"):
         for mach, mins in delay_by_machine.items():
             details_html += f"<li>{mach}: <b>{int(mins)} min</b></li>"
         details_html += "</ul></div>"
+    # 🔹 Machines Missing Plan/Actual/Data Check
+    if "Alert" in df.columns or "Note" in df.columns:
+        no_plan_df = df[df["Alert"].str.contains("Không có plan", na=False)][["Machine","ItemCode","Date"]]
+        no_actual_df = df[df["Alert"].str.contains("Không có actual", na=False)][["Machine","ItemCode","Date"]]
+        need_check_df = df[df["Note"].str.contains("Kiểm tra lại", na=False)][["Machine","ItemCode","Date","Note"]]
+
+        details_html += "<div class='block-box'><h2>🔎 Data Integrity Checks</h2>"
+
+        if not no_plan_df.empty:
+            details_html += "<h3>🟥 Unplanned Production (No Plan)</h3>"
+            details_html += "<p><i>Jobs that were not planned but actually produced.</i></p>"
+            details_html += no_plan_df.to_html(index=False, border=1, justify='center')
+
+        if not no_actual_df.empty:
+            details_html += "<h3>🟧 Unexecuted Plan (No Actual)</h3>"
+            details_html += "<p><i>Jobs that were planned but not executed (no actual result).</i></p>"
+            details_html += no_actual_df.to_html(index=False, border=1, justify='center')
+
+        if not need_check_df.empty:
+            details_html += "<h3>🟨 Data Integrity Issue (Need Check)</h3>"
+            details_html += "<p><i>Same machine and time slot has multiple ItemCodes – requires investigation.</i></p>"
+            details_html += need_check_df.to_html(index=False, border=1, justify='center')
+
+        details_html += "</div>"
 
     # =============== ALERT DETAILS BLOCK ===============
     alert_df = df[df["Alert"].notna()] if "Alert" in df.columns else pd.DataFrame()
